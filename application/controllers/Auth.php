@@ -93,8 +93,33 @@ class Auth extends CI_Controller {
                 'date_create' => time(),
             ];
             $this->db->insert('users',$data);
+            $this->_sendEmail();
             $this->session->set_flashdata('message','<div class="alert alert-warning" role="alert">Register Success</div>');
             redirect('auth');
+        }
+    }
+    private function _sendEmail(){
+        $config = [
+            'protocol' => 'smtp',
+            'smtp_host' => 'ssl://smtp.googlemail.com',
+            'smtp_user' => '',
+            'smtp_pass' => '',
+            'smtp_port' => 465,
+            'mailtype' => 'html',
+            'charset' => 'utf-8',
+            'newline' => "\r\n",
+        ];
+        $this->load->library('email',$config);
+        $this->email->from('');
+        $this->email->to('');
+        $this->email->subject('Testing');
+        $this->email->message('Hello worlds');
+        // $this->email->send();
+        if($this->email->send()){
+            return true;
+        }else{
+            echo $this->email->print_debugger();
+            die;
         }
     }
     public function logout(){
