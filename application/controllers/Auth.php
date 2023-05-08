@@ -92,13 +92,22 @@ class Auth extends CI_Controller {
                 'is_active' => 1,
                 'date_create' => time(),
             ];
+            $token = base64_encode(random_bytes(32));
+            $userToken = [
+                'email' => $this->input->post('email', true),
+                'token' => $token,
+                'date_created' => time()
+            ];
+            $this->db->input('user_token',$userToken);
+            // var_dump($token);
+            // die;
             $this->db->insert('users',$data);
-            $this->_sendEmail();
-            $this->session->set_flashdata('message','<div class="alert alert-warning" role="alert">Register Success</div>');
+            $this->_sendEmail($token, 'verify');
+            $this->session->set_flashdata('message','<div class="alert alert-warning" role="alert">Register Success. Please Activate your account</div>');
             redirect('auth');
         }
     }
-    private function _sendEmail(){
+    private function _sendEmail($token, $type){
         $config = [
             'protocol' => 'smtp',
             'smtp_host' => 'ssl://smtp.googlemail.com',
@@ -110,16 +119,47 @@ class Auth extends CI_Controller {
             'newline' => "\r\n",
         ];
         $this->load->library('email',$config);
-        $this->email->from('');
-        $this->email->to('');
-        $this->email->subject('Testing');
-        $this->email->message('Hello worlds');
+        $this->email->from(''); // dari email siapa
+        $this->email->to($this->input->post('email')); // ke email siapa
+        if($type == 'verify'){
+            $this->email->subject('Account Verification');
+            $this->email->message('Click this link to verify you account : <a href="'.base_url().'auth/veirify?email='.$this->input->post('email').'&token='.urlencode($token).'" >Activate</a>');
+        }
         // $this->email->send();
         if($this->email->send()){
             return true;
         }else{
             echo $this->email->print_debugger();
             die;
+        }
+    }
+    public function verify(){
+        $email = $this->input->get('email');
+        $token = $this->input->get('token');
+        $user = $this->db->get_where('users',['email' => $email])->row_array();
+        if($user){
+            $userToken = $this->db->get_where('user_token',[token=> $token])->row_array();
+            if($userToken){
+                if(Time() - $userToken['date_created'] < (60*60*24)){
+                    $this->db->set('is_active',1);
+                    $this->db->where('email',$email);
+                    $this->db->update('users');
+                    $this->db->delete('user_token',['email'=> $email]);
+                    $this->session->set_flashdata('message','<div class="alert alert-success" role="alert" >Aktivasi email '.$email.' berhasil!, silahkan login</div>');
+                    redirect('auth');
+                }else{
+                    $this->db->delete('users',['email'=> $email]);
+                    $this->db->delete('user_token',['email'=> $email]);
+                    $this->session->set_flashdata('message','<div class="alert alert-warning" role="alert" >Aktivasi akun gagal! Token Expired</div>');
+                    redirect('auth');
+                }
+            }else{
+                $this->session->set_flashdata('message','<div class="alert alert-warning" role="alert" >Aktivasi akun gagal! Token Salah</div>');
+                redirect('auth');
+            }
+        }else{
+            $this->session->set_flashdata('message','<div class="alert alert-warning" role="alert" >Aktivasi akun gagal! Email Salah</div>');
+            redirect('auth');
         }
     }
     public function logout(){
@@ -132,4 +172,11 @@ class Auth extends CI_Controller {
         // echo 'access blocked!';
         $this->load->view('auth/blocked');
     }
+    // public function forgotPassword(){
+    //     $data['title'] = "Forgot Password";
+        
+    //     $this->load->view('auth/part/header',$data);
+    //     $this->load->view('auth/forgotPassword',$data);
+    //     $this->load->view('auth/part/footer');
+    // }
 }
